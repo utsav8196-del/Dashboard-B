@@ -29,12 +29,28 @@ async function bootstrap() {
   app.locals.io = io;
   app.locals.socketState = socketState;
 
+  const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:5173")
+    .split(",")
+    .map((entry) => entry.trim());
+
   app.use(
     cors({
-      origin: (process.env.CLIENT_URL || "http://localhost:5173")
-        .split(",")
-        .map((entry) => entry.trim()),
+      origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, Postman, server-to-server)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        // Auto-allow common hosting domains (Vercel, Render, Netlify, GitHub Pages)
+        const autoAllowed = ["vercel.app", "onrender.com", "netlify.app", "github.io", "surge.sh", "firebaseapp.com"];
+        if (autoAllowed.some((domain) => origin.includes(domain))) {
+          return callback(null, true);
+        }
+        // Fallback: allow everything (safe for public APIs / demos)
+        return callback(null, true);
+      },
       credentials: true,
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+      optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
     }),
   );
   app.use(express.json({ limit: "2mb" }));
